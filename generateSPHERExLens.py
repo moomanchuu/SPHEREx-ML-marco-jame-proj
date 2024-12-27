@@ -10,7 +10,7 @@ from pathlib import Path
 base_dir = Path.cwd()
 
 autolens_config_path = base_dir / "autolens_config"
-spherex_path = base_dir / "SPHEREX"
+spherex_path = base_dir / "SPHEREx"
 
 sys.path.append(str(autolens_config_path))
 sys.path.append(str(spherex_path))
