@@ -15,7 +15,7 @@ import matplotlib as mpl
 from scipy.signal import correlate
 from astropy.io import fits
 
-def processImg(raw_image, psf_file='SPHEREx\psf_data\simulated_PSF_2DGaussian_1perarray.fits', psf_length=54):
+def processImg(raw_image, psf_file='SPHEREx/psf_data/simulated_PSF_2DGaussian_1perarray.fits', psf_length=54):
     """
     Processes an image for SPHEREx by convolving it with a PSF and binning the result.
 
