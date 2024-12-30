@@ -5,7 +5,7 @@ import numpy as np
 def generate_stronger_lensing_galaxy_cluster_with_halo(
     n,
     canvas_size=30.0,
-    std_dev=3.0,
+    std_dev=5.0,
     einstein_radius_range=(15, 45)
 ):
     """
@@ -84,7 +84,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
 
 def wrapperFunction(verbose=2):
     # Increase the number of galaxies in the cluster and canvas size
-    n_galaxies = 5
+    n_galaxies = 20
     canvas_size = 30.0  # Large canvas size to spread galaxies
     std_dev = 2.0      # Standard deviation for the normal distribution of galaxy positions
 
