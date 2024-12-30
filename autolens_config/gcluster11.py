@@ -4,9 +4,8 @@ import numpy as np
 
 def generate_stronger_lensing_galaxy_cluster_with_halo(
     n,
-    canvas_size=40.0,
-    redshift=0.5,
-    std_dev=5.0,
+    canvas_size=30.0,
+    std_dev=3.0,
     einstein_radius_range=(15, 45)
 ):
     """
@@ -22,6 +21,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
                                        parameters or remove them.
     """
     galaxies = []
+    redshift = np.random.uniform(0.5,5.0)
     
     # Create dark matter halo
     halo_centre = (0.0, 0.0)  # Place at the center of the canvas
@@ -54,7 +54,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
 
         # Random ellipticity and Einstein radius for each galaxy
         ell_comps = (np.random.uniform(-0.4, 0.4), np.random.uniform(-0.4, 0.4))
-        einstein_radius = np.random.uniform(1.5, 2.5)
+        einstein_radius = np.random.uniform(1.5, 3.5)
         
         # Create mass profile for each galaxy (still Isothermal for the main galaxies if you want)
         mass_profile = al.mp.Isothermal(
@@ -64,7 +64,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
         )
         
         # Create light profile for each galaxy
-        intensity = np.random.uniform(0.4, 0.8)
+        intensity = np.random.uniform(0.6, 1.0)
         effective_radius = np.random.uniform(0.3, 0.6)
         light_profile = al.lp.ExponentialSph(
             centre=(centre_x, centre_y),
@@ -86,7 +86,7 @@ def wrapperFunction(verbose=2):
     # Increase the number of galaxies in the cluster and canvas size
     n_galaxies = 5
     canvas_size = 30.0  # Large canvas size to spread galaxies
-    std_dev = 10.0      # Standard deviation for the normal distribution of galaxy positions
+    std_dev = 2.0      # Standard deviation for the normal distribution of galaxy positions
 
     # Generate the galaxy cluster with significantly stronger lensing properties
     cluster_galaxies = generate_stronger_lensing_galaxy_cluster_with_halo(
