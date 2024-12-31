@@ -34,7 +34,6 @@ def generate_and_process(index, probLensing=1):
     # Randomly determine lensing based on the probability
     lensing = 1 if np.random.random() < probLensing else 0
 
-    # Generate the raw image using the galaxy wrapper function
     rawImage = galaxy.wrapperFunction(
         n_cluster_members=5,
         cluster_central_redshift=0.5,
@@ -43,10 +42,8 @@ def generate_and_process(index, probLensing=1):
         plot_result=False
     )
 
-    # Convert the raw image into a NumPy array
     raw = copy.deepcopy(np.array(rawImage.data.native))
 
-    # Process the raw image into convolved and binned versions
     convolved, binned = SPHEREx.processImg(copy.deepcopy(raw))
 
     return {
@@ -60,23 +57,16 @@ def generate_and_process(index, probLensing=1):
 def save_results(results, output_path):
     """
     Save generated and processed images into an HDF5 file.
-
-    Parameters:
-        results (list): List of dictionaries containing simulation results.
-        output_path (str): Path to the output HDF5 file.
     """
     with h5py.File(output_path, "w") as hdf:
-        # Store indices and lensing flags
         indices = [result["index"] for result in results]
         is_lensed = [result["isLensed"] for result in results]
         hdf.create_dataset("indices", data=np.array(indices, dtype=int))
         hdf.create_dataset("isLensed", data=np.array(is_lensed, dtype=int))
 
-        # Define shapes of the arrays
         simulated_shape = results[0]["simulated_array"].shape
         spherex_shape = results[0]["spherex_array"].shape
 
-        # Create datasets for simulated and SPHEREx arrays
         simulated_dataset = hdf.create_dataset(
             "simulated_arrays",
             shape=(len(results), *simulated_shape),
@@ -88,7 +78,6 @@ def save_results(results, output_path):
             dtype="f"
         )
 
-        # Save arrays into the datasets
         for i, result in enumerate(results):
             simulated_dataset[i] = result["simulated_array"]
             spherex_dataset[i] = result["spherex_array"]
@@ -109,11 +98,6 @@ def task_wrapper(args):
 def main(num_images, probLensing=1, output_path="output.h5"):
     """
     Main function to generate and process galaxy images in parallel.
-
-    Parameters:
-        num_images (int): Total number of images to generate.
-        probLensing (float): Probability of lensing occurrence (0 to 1).
-        output_path (str): File path to save the results.
     """
     # Single-threaded version for debugging
     results = [
@@ -121,10 +105,8 @@ def main(num_images, probLensing=1, output_path="output.h5"):
         for index in tqdm(range(num_images), desc="Processing images")
     ]
     '''
-    # Prepare arguments for multiprocessing
     args = [(index, probLensing) for index in range(num_images)]
 
-    # Parallel processing with multiprocessing Pool
     with multiprocessing.Pool() as pool:
         results = list(
             tqdm(
@@ -134,19 +116,16 @@ def main(num_images, probLensing=1, output_path="output.h5"):
             )
         )
     '''
-    # Save results to an HDF5 file
     save_results(results, output_path)
 
     return results
 
 
 if __name__ == "__main__":
-    # Example parameters for generating data
-    num_images = 5  # Adjust as needed
-    probLensing = 0.5  # 50% probability of lensing
+    num_images = 5  # Prob need 500+ lmao 
+    probLensing = 0.5  # 1 = only lensing objects, 0 = no lensing, 0.5 = 50-50
     output_path = "output/test4.h5"  # Path to save the output file
 
-    # Run the main function
     results = main(num_images, probLensing, output_path)
 
 
