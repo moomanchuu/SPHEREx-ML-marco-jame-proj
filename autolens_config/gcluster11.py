@@ -4,8 +4,9 @@ import numpy as np
 
 def generate_stronger_lensing_galaxy_cluster_with_halo(
     n,
-    canvas_size=30.0,
-    std_dev=5.0,
+    canvas_size,
+    redshift, 
+    std_dev,
     einstein_radius_range=(15, 45)
 ):
     """
@@ -21,7 +22,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
                                        parameters or remove them.
     """
     galaxies = []
-    redshift = np.random.uniform(0.5,5.0)
+    #redshift = np.random.uniform(0.5,5.0)
     
     # Create dark matter halo
     halo_centre = (0.0, 0.0)  # Place at the center of the canvas
@@ -84,21 +85,23 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
 
 def wrapperFunction(verbose=2):
     # Increase the number of galaxies in the cluster and canvas size
-    n_galaxies = 20
+    n_galaxies = np.random.randint(3,8)
     canvas_size = 30.0  # Large canvas size to spread galaxies
-    std_dev = 2.0      # Standard deviation for the normal distribution of galaxy positions
+    redshift = np.random.uniform(0.5,5)
+    std_dev = np.random.uniform(2.0,10.0)      # Standard deviation for the normal distribution of galaxy positions
 
     # Generate the galaxy cluster with significantly stronger lensing properties
     cluster_galaxies = generate_stronger_lensing_galaxy_cluster_with_halo(
         n=n_galaxies,
         canvas_size=canvas_size,
+        redshift =redshift,
         std_dev=std_dev
     )
 
     # Position the source galaxy close to the cluster for optimal lensing
     source_position = (0, 0)  # You can randomize this as you like
     source_galaxy = al.Galaxy(
-        redshift=1.0,
+        redshift= redshift + np.random.uniform(0.5,1.5),
         light=al.lp.ExponentialSph(
             centre=source_position,
             intensity=0.5,
