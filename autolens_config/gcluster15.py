@@ -191,17 +191,16 @@ def simulate_realistic_cluster_no_lensing( #Marco lazy and doesnt want to mess w
         pixel_scales=pixel_scales
     )
 
-    psf = al.Kernel2D.from_gaussian(  # Assuming this PSF is << SPHEREx PSF
-        shape_native=(21, 21),
-        sigma=0.8,
-        pixel_scales=grid.pixel_scales
-    )
+    # psf = al.Kernel2D.from_gaussian(  # Assuming this PSF is << SPHEREx PSF
+    #     shape_native=(21, 21),
+    #     sigma=0.8,
+    #     pixel_scales=grid.pixel_scales
+    # )
 
     simulator = al.SimulatorImaging(
         exposure_time=300.0,
-        background_sky_level=1.0,
-        psf=psf,
-        add_poisson_noise=True,
+        background_sky_level=1.0, # psf = psf,
+        add_poisson_noise=False,
         noise_seed=1
     )
 
