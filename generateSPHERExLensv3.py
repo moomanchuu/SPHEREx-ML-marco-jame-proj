@@ -7,6 +7,7 @@ import h5py
 from pathlib import Path
 import sys
 import copy
+import os
 
 # Setup paths for imports
 base_dir = Path.cwd()
@@ -31,6 +32,8 @@ def generate_and_process(index, probLensing=1):
     Returns:
         dict: Contains index, lensing flag, and processed arrays.
     """
+    np.random.seed(int.from_bytes(os.urandom(4), byteorder='little')) #Change the RNG seed
+
     # Randomly determine lensing based on the probability
     lensing = 1 if np.random.random() < probLensing else 0
 
@@ -100,11 +103,11 @@ def main(num_images, probLensing=1, output_path="output.h5"):
     Main function to generate and process galaxy images in parallel.
     """
     # Single-threaded version for debugging
-    results = [
-        generate_and_process(index, probLensing=probLensing)
-        for index in tqdm(range(num_images), desc="Processing images")
-    ]
-    '''
+    # results = [
+    #     generate_and_process(index, probLensing=probLensing)
+    #     for index in tqdm(range(num_images), desc="Processing images")
+    # ]
+    
     args = [(index, probLensing) for index in range(num_images)]
 
     with multiprocessing.Pool() as pool:
@@ -115,7 +118,7 @@ def main(num_images, probLensing=1, output_path="output.h5"):
                 desc="Processing images"
             )
         )
-    '''
+    
     save_results(results, output_path)
 
     return results
@@ -124,7 +127,7 @@ def main(num_images, probLensing=1, output_path="output.h5"):
 if __name__ == "__main__":
     num_images = 5  # Prob need 500+ lmao 
     probLensing = 0.5  # 1 = only lensing objects, 0 = no lensing, 0.5 = 50-50
-    output_path = "output/test4.h5"  # Path to save the output file
+    output_path = "output/test5.h5"  # Path to save the output file
 
     results = main(num_images, probLensing, output_path)
 
