@@ -45,15 +45,21 @@ def generate_and_process(index, probLensing=1):
         plot_result=False
     )
 
+    darkCurrentRate = 0.02  # e-/s/pixel (from: https://ar5iv.labs.arxiv.org/html/1412.4872)
+    integrationTime = 5  # seconds, this is prob pseudo-completely arbitary? 
+    noiseParameter = darkCurrentRate*integrationTime #note, larger parameter = more noise
+
     raw = copy.deepcopy(np.array(rawImage.data.native))
 
     convolved, binned = SPHEREx.processImg(copy.deepcopy(raw))
+    darkCurrentArray = SPHEREx.addNoise(binned,mode="constantdarkcurrent", parameter = noiseParameter)
 
     return {
         "index": index,
         "isLensed": lensing,
         "simulated_array": raw,
-        "spherex_array": binned
+        "SPHEREx_Array_binned": binned,
+        "SPHEREx_Array_dc": darkCurrentArray
     }
 
 
@@ -68,22 +74,30 @@ def save_results(results, output_path):
         hdf.create_dataset("isLensed", data=np.array(is_lensed, dtype=int))
 
         simulated_shape = results[0]["simulated_array"].shape
-        spherex_shape = results[0]["spherex_array"].shape
+        spherex_shape = results[0]["SPHEREx_Array_binned"].shape
+
 
         simulated_dataset = hdf.create_dataset(
             "simulated_arrays",
             shape=(len(results), *simulated_shape),
             dtype="f"
         )
-        spherex_dataset = hdf.create_dataset(
-            "spherex_arrays",
+        spherexBinned_dataset = hdf.create_dataset(
+            "SPHEREx_Array_binned",
+            shape=(len(results), *spherex_shape),
+            dtype="f"
+        )
+
+        spherexDC_dataset = hdf.create_dataset(
+            "SPHEREx_Array_dc",
             shape=(len(results), *spherex_shape),
             dtype="f"
         )
 
         for i, result in enumerate(results):
             simulated_dataset[i] = result["simulated_array"]
-            spherex_dataset[i] = result["spherex_array"]
+            spherexBinned_dataset[i] = result["SPHEREx_Array_binned"]
+            spherexDC_dataset[i] = result["SPHEREx_Array_dc"]
 
     print(f"Results successfully saved to {output_path}")
 
