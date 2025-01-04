@@ -32,7 +32,7 @@ def generate_and_process(index, probLensing=1):
     Returns:
         dict: Contains index, lensing flag, and processed arrays.
     """
-    np.random.seed(int.from_bytes(os.urandom(4), byteorder='little')) #Change the RNG seed
+    np.random.seed(int.from_bytes(os.urandom(8), byteorder='little')) #Change the RNG seed
 
     # Randomly determine lensing based on the probability
     lensing = 1 if np.random.random() < probLensing else 0
