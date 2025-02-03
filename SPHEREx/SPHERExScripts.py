@@ -16,6 +16,297 @@ from scipy.signal import correlate
 from astropy.io import fits
 
 
+from astropy.modeling.models import Sersic2D
+from scipy.integrate import dblquad
+from astropy.coordinates.matrix_utilities import rotation_matrix
+from astropy.coordinates import SkyCoord
+from astropy import units as u
+from scipy.stats import binned_statistic_2d
+from tqdm import tqdm
+
+
+
+
+
+#Function for Loading in SPHEREx PSF Data: 
+def loadPSFData(filePath = 'SPHEREx\psf_data\simulated_PSF_2DGaussian_1perarray.fits'):
+    hdul =fits.open(filePath)
+    hdu_psf = hdul[42]
+    reso_ratio = int(3.1/hdu_psf.header['HIERARCH platescale'])
+
+    # Crop PSF image to 98x98 pixels, then normalize the PSF so sum of all pixel = 1
+    psf = hdu_psf.data
+    c = int(psf.shape[0]/2)
+    psf_length = 54 #49? Was told to keep it at 54
+    psf = psf[c-psf_length:c+psf_length, c-psf_length:c+psf_length]
+    psf = psf/np.sum(psf)
+    return psf,reso_ratio,psf_length
+
+
+
+def add_sersic_to_canvas(canvas, x, y, flux, n=4, r_eff=10, ellip=0.5, theta=0, x_grid=None, y_grid=None): 
+
+    """
+    Add a Sersic profile to the canvas with the specified total flux.
+
+    Parameters:
+    canvas (2D array): The image canvas to draw on.
+    x, y (int): The central position of the Sersic profile.
+    flux (float): The total flux of the source.
+    n (float): The Sersic index.
+    r_eff (float): The effective radius of the Sersic profile.
+    ellip (float): The ellipticity of the profile (0 is circular).
+    theta (float): The position angle of the profile.
+    x_grid, y_grid (2D arrays): Predefined grids for x and y coordinates (optional).
+    """
+
+    x_grid, y_grid = np.mgrid[:canvas.shape[0], :canvas.shape[1]] 
+
+    # Create an initial Sersic2D model with amplitude 1 
+    initial_sersic = Sersic2D(amplitude=1, r_eff=r_eff, n=n, ellip=ellip, theta=theta)
+    
+    # Shift the grid to center the Sersic profile at (x, y)
+    x_grid_shifted = x_grid - x
+    y_grid_shifted = y_grid - y
+    
+    # Evaluate the initial Sersic model on the shifted grid
+    initial_profile = initial_sersic(x_grid_shifted, y_grid_shifted)
+    
+    # Scale the amplitude to match the desired total flux
+    amplitude = flux / np.sum(initial_profile)
+    
+    # Create a Sersic2D model with the scaled amplitude 
+    sersic = amplitude * initial_profile
+    
+    # Evaluate the Sersic model on the shifted grid and add to the canvas
+    canvas += sersic
+
+#Generate BackGround Image
+
+from multiprocessing import Pool, cpu_count
+from multiprocessing import Manager
+import time
+#V6: Removes most of the metadata generation, also hard codes it such that each image is of SPHEREx Pix = 2061 (3.1779 sq degrees)
+
+def gen_globalmap_section_indexes(section_size,sections_per_side):
+
+    # Initialize list to store the section position indices
+    section_position_idxs = []
+
+    # Loop through the base array and assign values to corresponding sectors in the expanded array
+    for i in range(sections_per_side):
+        for j in range(sections_per_side):
+            # Get the value for the current section
+            # Get the position indices for this section
+            section_positions = []
+            for row in range(i*section_size, (i+1)*section_size):
+                for col in range(j*section_size, (j+1)*section_size):
+                    section_positions.append((row, col))
+
+            section_position_idxs.append(section_positions)
+
+    return section_position_idxs
+
+def add_sections_to_canvas(stitchedCanvas, populatedSection, section_positions):
+    """
+    Applies the values of populatedSection into the corresponding positions in stitchedCanvas.
+    
+    Args:
+    stitchedCanvas: The large canvas where the values will be placed.
+    populatedSection: The smaller section array to be applied.
+    section_positions: The position indices in stitchedCanvas where the populatedSection should be applied.
+    
+    Returns:
+    stitchedCanvas: The updated canvas with the populatedSection applied.
+    """
+    # Flatten the populatedSection so we can iterate over its values
+    flat_populated_section = populatedSection.flatten()
+    
+    # Iterate over the section_positions and assign values from populatedSection
+    for idx, (row, col) in enumerate(section_positions):
+        stitchedCanvas[row, col] = flat_populated_section[idx]
+    
+    return stitchedCanvas
+
+def add_sersic_to_canvasV2(canvas, x, y, flux, section_pos_idx, edgeSersics,n=4, r_eff=10, ellip=0.5, theta=0):
+    """
+    Add a Sersic profile to the canvas with a check for edges. If the Sersic profile 
+    goes out of bounds, save the necessary parameters in edgeSersicArrays for later addition.
+    
+    Args:
+    - canvas: The individual section where the Sersic is being added.
+    - x, y: The local position within the section.
+    - flux: Total flux of the Sersic profile.
+    - section_pos_idx: The corresponding global positions on the stitchedCanvas for the local section.
+    - n, r_eff, ellip, theta: Parameters of the Sersic profile.
+    - section_idx: The index of the current section.
+    """
+    canvas_shape = canvas.shape 
+    x_min, x_max = x - 5*r_eff, x + 5*r_eff
+    y_min, y_max = y - 5*r_eff, y + 5*r_eff
+
+    # Check if the profile goes out of bounds
+    if x_min < 0 or x_max >= canvas_shape[0] or y_min < 0 or y_max >= canvas_shape[1]:
+        # Use the local (x, y) to find the corresponding global position in section_pos_idx
+        global_position_idx = x * canvas_shape[1] + y
+        global_x, global_y = section_pos_idx[global_position_idx]
+
+        # Save the necessary parameters in edgeSersicArrays
+        edgeSersics.append((global_x, global_y, flux, r_eff, n, ellip, theta))
+    else:
+        # If within bounds, generate the Sersic profile directly and add to the canvas
+        x_grid, y_grid = np.mgrid[:canvas.shape[0], :canvas.shape[1]]
+        initial_sersic = Sersic2D(amplitude=1, r_eff=r_eff, n=n, ellip=ellip, theta=theta)
+        x_grid_shifted = x_grid - x
+        y_grid_shifted = y_grid - y
+        initial_profile = initial_sersic(x_grid_shifted, y_grid_shifted)
+        amplitude = flux / np.sum(initial_profile)
+        sersic = amplitude * initial_profile
+        canvas += sersic
+
+def apply_edge_sersics_to_stitched_canvas(stitchedCanvas, edgeSersics):
+    """
+    Reapply all edge Sersic profiles stored in edgeSersicArrays to the stitchedCanvas.
+    
+    Args:
+    - stitchedCanvas: The large stitched canvas.
+    - edgeSersicArrays: List of Sersic parameters to reapply (global_x, global_y, flux, r_eff, n, ellip, theta).
+    """ 
+    for global_x, global_y, flux, r_eff, n, ellip, theta in tqdm(edgeSersics, desc = 'Edge Sersics Progress:'):
+        #generate the Sersic profile
+        x_grid, y_grid = np.mgrid[:stitchedCanvas.shape[0], :stitchedCanvas.shape[1]]
+        initial_sersic = Sersic2D(amplitude=1, r_eff=r_eff, n=n, ellip=ellip, theta=theta)
+        x_grid_shifted = x_grid - global_x
+        y_grid_shifted = y_grid - global_y
+        initial_profile = initial_sersic(x_grid_shifted, y_grid_shifted)
+        
+        amplitude = flux / np.sum(initial_profile)
+        sersic = amplitude * initial_profile
+
+        # Add the Sersic profile to the stitched canvas
+        stitchedCanvas += sersic
+
+    return stitchedCanvas
+
+
+def process_section(args):
+    x, y, flux_column, n_pix, x_range, y_range, dataTable, edgeSersics,section_position_idx = args
+    
+    x = np.array(x)
+    y = np.array(y)
+    flux_column = np.array(flux_column)
+    
+    dataTable = dataTable.copy()  # Make sure the original table isn't modified
+
+    # Now proceed with binned_statistic_2d
+    stat, x_edge, y_edge, bin_idx = binned_statistic_2d(
+        x, y, values=flux_column, statistic='sum',
+        bins=n_pix, range=[x_range, y_range], expand_binnumbers=True
+    )
+
+    canvas = np.zeros((n_pix, n_pix))
+
+    for idx, pos in enumerate(bin_idx.T):
+        if pos[0] > 0 and pos[0] <= n_pix and pos[1] > 0 and pos[1] <= n_pix:
+            #print(f"Adding RA: {dataTable[idx]['ra']}, Dec: {dataTable[idx]['dec']}")
+            if dataTable[idx]['type'] == 'PSF' or np.ma.is_masked(dataTable[idx]['type']):  # Check for PSF or masked objects
+                canvas[pos[0]-1, pos[1]-1] += flux_column[idx]  # Treat as point source, occupying only one pixel
+            else:
+                # Use the modified add_sersic_to_canvas_with_edge_check function
+                add_sersic_to_canvasV2(canvas, pos[0]-1, pos[1]-1, flux_column[idx], section_position_idx, edgeSersics,
+                                                     dataTable[idx]['sersic'], dataTable[idx]['shape_r'], 
+                                                     dataTable[idx]['ellipticity'], dataTable[idx]['theta'])
+                                                     
+    return canvas
+
+
+def parallel_canvas_generator(ra_column, dec_column, flux_column, ra_offset,dec_offset, dataTable,psf_length, reso_ratio, n_spherex_pix, n_sections):
+
+
+    start_time = time.time()
+
+    # Project RA/DEC to cartesian coordinate
+    rotation_dec = rotation_matrix((90 - dec_offset) * u.deg, axis='x')  # Adjust Declination offset
+    rotation_ra = rotation_matrix((ra_offset - 270) * u.deg, axis='z')  # Adjust RA offset from 270
+    coords = SkyCoord(ra=ra_column, dec=dec_column, unit='deg')
+
+    # Convert to cartesian coordinate with distance to origin = 1
+    cart = coords.represent_as('cartesian')
+
+    rot_cart = cart.transform(rotation_ra @ rotation_dec)    # Apply rotation matrix
+
+    # Get only x and y coordinate, assume flat field approximation to ignore z
+    x, y = rot_cart.get_xyz()[0], rot_cart.get_xyz()[1] #x = RA, y = Dec 
+    
+    # Calculate pixel size and dimensions
+    pixel_size = (0.344 * u.arcsec).to(u.degree).value
+    # n_spherex_pix = 205 #sqrt
+    n_pix = n_spherex_pix * reso_ratio + 2 * psf_length - 1
+    angular_d = n_pix * pixel_size
+    cart_d = np.sin(angular_d * np.pi / 180)
+
+    stitchedCanvas = np.zeros((n_pix,n_pix))
+
+    # Determine the number of sections per side
+    sections_per_side = int(np.sqrt(n_sections))
+    section_size = n_pix // sections_per_side
+
+    #print("Obtaining section_positions....")
+    section_position_idxs = gen_globalmap_section_indexes(section_size,sections_per_side)
+    
+    manager = Manager()
+    edgeSersics = manager.list()
+
+    ranges = []
+
+    for j in range(sections_per_side):  # Outer loop for rows (y-axis), top to bottom (Declination)
+        for i in range(sections_per_side):  # Inner loop for columns (x-axis), left to right (RA)
+            x_range = [-cart_d + i * 2 * cart_d / sections_per_side, -cart_d + (i + 1) * 2 * cart_d / sections_per_side]
+            y_range = [-cart_d + j * 2 * cart_d / sections_per_side, -cart_d + (j + 1) * 2 * cart_d / sections_per_side]
+
+            #RA and Dec range has been removed!
+            
+            ranges.append((y_range, x_range)) 
+
+
+    #List of arguements used for multiprocessing
+    args = [(x, y, flux_column, section_size, x_range, y_range, dataTable, edgeSersics, section_position_idxs[idx]) 
+            for idx, (x_range, y_range) in enumerate(ranges)]
+    
+    sectionAreaDeg = (section_size*pixel_size)**2 #area of each section in degrees^2
+    totalAreaDeg = (n_pix*pixel_size)**2 #total area of stitchedCanvas in degrees^2
+
+    #print(f'Generating {n_sections} sections using {cpu_count()} cores.\nSection Area: {sectionAreaDeg} deg^2 | Total Area: {totalAreaDeg} deg^2')
+    
+
+    # Use multiprocessing to process each section with a progress bar 
+    with Pool(cpu_count()) as pool:
+        canvas_sections = list(tqdm(pool.imap(process_section, args), total=len(args),desc='TOTAL CANVAS PROGRESS:'))
+        
+    # Standard recombination of sections into the large canvas
+    #stitchedCanvas = np.zeros((sections_per_side * section_size, sections_per_side * section_size))
+
+    #print("Individual Image Processing Complete! Beginning Restitching Process...")
+    for canvas_section, global_section_idxs in zip(canvas_sections, section_position_idxs):
+        # Flatten the populatedSection to match with section_positions indices
+        flat_populated_section = canvas_section.flatten()
+        
+        # Vectorized assignment: apply the values to stitchedCanvas
+        stitchedCanvas[tuple(np.array(global_section_idxs).T)] = flat_populated_section
+
+    #print(f"Restitching Complete! Begin EdgeSersicAdditions (n={len(edgeSersics)})")
+    
+    stitchedCanvas = apply_edge_sersics_to_stitched_canvas(stitchedCanvas, edgeSersics)
+
+    #no need for this tbh: end_time = time.time()
+    elapsed_time = time.time() - start_time
+    #print(f'parallel_canvas_generator has been completed. Time Elapsed: {elapsed_time} seconds. Enjoy!')
+    return stitchedCanvas
+
+
+
+
+
 def calculate_original_image_pixels(sphereX_pixels, resolution_ratio=9, psf_length=54):
     """
     Calculate the required original image pixel dimensions based on SPHEREx pixel size.
@@ -176,7 +467,6 @@ def plotSPHERExData(indices, is_lensed, simulated_arrays, spherexBinnedArrays=No
     if indice is None:
         raise ValueError("An index (indice) must be specified for plotting.")
 
-    # Get the row index for the given indice
     row_index = list(indices).index(indice)
 
     # Check lensed status
@@ -193,7 +483,6 @@ def plotSPHERExData(indices, is_lensed, simulated_arrays, spherexBinnedArrays=No
         "Dark Current Added"
     ]
 
-    # Filter out "None"
     valid_images = [(img, title) for img, title in zip(images, titles) if img is not None]
 
     fig, axes = plt.subplots(1, len(valid_images), figsize=(6 * len(valid_images), 6))
