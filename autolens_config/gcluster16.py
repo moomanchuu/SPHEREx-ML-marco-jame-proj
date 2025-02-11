@@ -33,7 +33,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     halo_mass_profile = al.mp.gNFW(
         centre=halo_centre,
         kappa_s=0.03,                # dimensionless amplitude
-        scale_radius=r_c*12*std_dev,
+        scale_radius=r_c*20*std_dev,
         inner_slope=1.5             # typical range ~ [1.0 - 1.5], but can vary
     )
     
@@ -42,8 +42,8 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     galaxies.append(dark_matter_halo)
     
     for _ in range(n):
-        centre_x = np.random.normal(loc=0.0, scale=10*std_dev)
-        centre_y = np.random.normal(loc=0.0, scale=10*std_dev)
+        centre_x = np.random.normal(loc=0.0, scale=9*std_dev)
+        centre_y = np.random.normal(loc=0.0, scale=9*std_dev)
 
         r = np.sqrt((centre_x**2) + (centre_y**2))
 
@@ -79,12 +79,13 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
         #     effective_radius=intense*1.5,
         #     sersic_index=np.random.uniform(1.0,4.0)
         # )
-        intensity = np.random.uniform(0.5, 5.0)
+        intensity = np.random.uniform(0.5, 3.5)
         # effective_radius = np.random.uniform(0.3, 0.6)
         light_profile = al.lp.Sersic(
             centre=(centre_x, centre_y),
+            ell_comps=ell_comps,
             intensity=intensity,
-            effective_radius=intensity*0.8, 
+            effective_radius=intensity*0.6, 
             sersic_index=np.random.uniform(1.0,4.0)
         )
 
@@ -118,7 +119,7 @@ def wrapperFunction(n_galaxies, background_image, verbose=2):
         np.random.uniform(0.0,5.0),
         np.random.uniform(0.0,5.0)
     )  # You can randomize this as you like
-    intensity = np.random.uniform(1.0, 2.0)
+    intensity = np.random.uniform(0.5, 1.0)
     effective_radius = np.random.uniform(0.3, 0.6)
     source_profile = al.lp.Sersic(
         centre=source_position,
