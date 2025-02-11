@@ -7,7 +7,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     canvas_size,
     redshift, 
     std_dev,
-    einstein_radius_range=(15, 45)
+    einstein_radius_range=(30, 60)
 ):
     """
     Generates a list of n galaxies with strong lensing properties and includes a dark matter halo.
@@ -83,12 +83,12 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     
     return galaxies
 
-def wrapperFunction(verbose=2):
+def wrapperFunction(n_galaxies, verbose=2):
     # Increase the number of galaxies in the cluster and canvas size
-    n_galaxies = np.random.randint(3,8)
-    canvas_size = 30.0  # Large canvas size to spread galaxies
-    redshift = np.random.uniform(0.5,5)
-    std_dev = np.random.uniform(2.0,10.0)      # Standard deviation for the normal distribution of galaxy positions
+    # n_galaxies = np.random.randint(3,8)
+    canvas_size = 60.0  # Large canvas size to spread galaxies
+    redshift = 0.5
+    std_dev = np.random.uniform(3.0,10.0)   # Standard deviation for the normal distribution of galaxy positions
 
     # Generate the galaxy cluster with significantly stronger lensing properties
     cluster_galaxies = generate_stronger_lensing_galaxy_cluster_with_halo(
