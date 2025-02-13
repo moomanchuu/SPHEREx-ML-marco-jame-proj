@@ -33,9 +33,9 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     
     halo_mass_profile = al.mp.gNFW(
         centre=halo_centre,
-        kappa_s=0.05,                # dimensionless amplitude
-        scale_radius=r_c*25*std_dev,
-        inner_slope=1.5             # typical range ~ [1.0 - 1.5], but can vary
+        kappa_s=0.008,                # dimensionless amplitude
+        scale_radius=r_c*50*std_dev,
+        inner_slope= 1.85             # typical range ~ [1.0 - 1.5], but can vary
     )
     
     # Add the dark matter halo as an invisible galaxy
