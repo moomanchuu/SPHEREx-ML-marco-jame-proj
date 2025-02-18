@@ -217,7 +217,7 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
         # Define a grid for the simulation to cover the entire canvas
             grid = al.Grid2D.uniform(
                 shape_native=(600, 600),
-                pixel_scales=1.8  # Pixel scale for capturing fine details
+                pixel_scales=0.4  # 1.8 before testing for critical curves # Pixel scale for capturing fine details
             )
 
             # Create a tracer for just the galaxy cluster (lens galaxies only, without the source)
@@ -238,12 +238,12 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
             # Combine the two images by adding the cluster light to the lensed image
             combined_image = lensed_image_with_cluster + cluster_image
 
-            # if verbose >= 2:
-            #     cluster_plotter = aplt.Array2DPlotter(array=cluster_image)
-            #     cluster_plotter.figure_2d()
+            if verbose >= 2:
+                cluster_plotter = aplt.Array2DPlotter(array=cluster_image)
+                cluster_plotter.figure_2d()
 
-                # combined_image_plotter = aplt.Array2DPlotter(array=combined_image)
-                # combined_image_plotter.figure_2d()
+                combined_image_plotter = aplt.Array2DPlotter(array=combined_image)
+                combined_image_plotter.figure_2d()
 
             return combined_image.native  # Return native 2D array
             # return cluster_image.native

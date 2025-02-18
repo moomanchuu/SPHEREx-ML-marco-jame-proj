@@ -14,9 +14,9 @@ include_2d:
   border: false                      # Include the border of the mask (all pixels on the outside of the mask) ?
   grid: false                       # Include the data's 2D grid of (y,x) coordinates ?
   positions: true                   # Include (y,x) coordinates specified via `Visuals2d.positions` ?
-  tangential_critical_curves: false #Changed to false by James
+  tangential_critical_curves: true #Changed to false by James
   tangential_caustics: true
-  radial_critical_curves: 
+  radial_critical_curves: true
   radial_caustics: true
   light_profile_centres: false
   mass_profile_centres: false

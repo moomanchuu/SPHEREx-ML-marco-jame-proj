@@ -88,7 +88,7 @@ def wrapperFunction(n_galaxies, verbose=2):
     # n_galaxies = np.random.randint(3,8)
     canvas_size = 60.0  # Large canvas size to spread galaxies
     redshift = 0.5
-    std_dev = np.random.uniform(3.0,10.0)   # Standard deviation for the normal distribution of galaxy positions
+    std_dev = np.random.uniform(0,10.0)      # Standard deviation for the normal distribution of galaxy positions
 
     # Generate the galaxy cluster with significantly stronger lensing properties
     cluster_galaxies = generate_stronger_lensing_galaxy_cluster_with_halo(

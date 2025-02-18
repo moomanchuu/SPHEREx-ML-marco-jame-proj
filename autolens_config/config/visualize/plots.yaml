@@ -47,7 +47,7 @@ tracer:                               # Settings for plots of tracers (e.g. Trac
   convergence: true                        # Plot image of the tracer's convergence (log10)?
   potential: false                         # Plot image of the tracer's potential (log10)?
   deflections: false                       # Plot images of the tracer's y and x deflections?
-  magnification: false                     # Plot image of the tracer's magnification?
+  magnification: true                     # Plot image of the tracer's magnification? # Edited to true James Buda 2/15/25 --> to see whether this helps with caustics in source plane
 galaxies_1d:                                  # Settings for 1D plots of galaxies (e.g. GalaxiesPlotter).
   image: false
   convergence: false
