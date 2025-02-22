@@ -30,10 +30,22 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
 
     r_c = n**(0.92)
 
+    if halo_centre == (0,0):
+        kap = 0.008
+        einstein_radius = np.random.uniform(3.0,6.0)
+    else:
+        kap = 0.04
+        einstein_radius = np.random.uniform(5.0,7.0)
+
+    # make the dark matter halo more elliptical?
+    dark_comp = 0.3
+    dark_ell = (np.random.uniform(-dark_comp, dark_comp), np.random.uniform(-dark_comp, dark_comp))
+
     
     halo_mass_profile = al.mp.gNFW(
         centre=halo_centre,
-        kappa_s=0.008,                # dimensionless amplitude
+        ell_comps=dark_ell,
+        kappa_s=kap,           # used to be 0.008     # dimensionless amplitude
         scale_radius=r_c*50*std_dev,
         inner_slope= 1.85             # typical range ~ [1.0 - 1.5], but can vary
     )
@@ -54,8 +66,9 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
         #     centre_y = np.random.normal(loc=0.0, scale=std_dev)
 
         # Random ellipticity and Einstein radius for each galaxy
-        ell_comps = (np.random.uniform(-0.4, 0.4), np.random.uniform(-0.4, 0.4))
-        einstein_radius = np.random.uniform(3.0, 6.0)
+        ell_num = 0.5
+        ell_comps = (np.random.uniform(-ell_num, ell_num), np.random.uniform(-ell_num, ell_num))
+        # einstein_radius = np.random.uniform(3.0, 7.0)
         
         # Create mass profile for each galaxy (still Isothermal for the main galaxies if you want)
         mass_profile = al.mp.Isothermal(
@@ -109,7 +122,7 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
         
         # Generate random offsets for each cluster. Here we choose offsets within ±canvas_size/3.
         cluster_offsets = []
-        offset_limit = canvas_size*2
+        offset_limit = canvas_size*2.0
         for _ in range(n_clusters):
             offset_x = np.random.uniform(-offset_limit, offset_limit)
             offset_y = np.random.uniform(-offset_limit, offset_limit)
@@ -120,7 +133,8 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
         # For now, lets randomize the number of galaxies
         all_clusters_galaxies = []
         for offset in cluster_offsets:
-            N = int(np.random.uniform(7,10))
+            # N = int(np.random.uniform(n_galaxies-2,n_galaxies+2))
+            N = n_galaxies
             cluster_galaxies = generate_stronger_lensing_galaxy_cluster_with_halo(
                 n=N,
                 canvas_size=canvas_size,
@@ -130,34 +144,93 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
             )
             all_clusters_galaxies += cluster_galaxies
         
-        # Define a source galaxy placed at the center.
-        source_position = (0.0, 0.0)
-        intensity = np.random.uniform(0.5, 1.0)
-        source_profile = al.lp.Sersic(
-            centre=source_position,
-            intensity=intensity,
-            effective_radius=intensity * 1.5, 
-            sersic_index=np.random.uniform(1.0, 4.0)
-        )
-        source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
+        # # Define a source galaxy placed at the center.
+        # source_position = (0.0, 0.0)
+        # intensity = np.random.uniform(0.5, 1.0)
+        # source_profile = al.lp.Sersic(
+        #     centre=source_position,
+        #     intensity=intensity,
+        #     effective_radius=intensity * 1.5, 
+        #     sersic_index=np.random.uniform(1.0, 4.0)
+        # )
+        # source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
         
         if background_image.any() == None:
             # Create the simulation grid.
             grid = al.Grid2D.uniform(
                 shape_native=(600, 600),
-                pixel_scales=1.8
+                pixel_scales=0.8
             )
             
             # First, produce the image from all cluster galaxies (their own light).
             tracer_clusters_only = al.Tracer(galaxies=all_clusters_galaxies)
             clusters_image = tracer_clusters_only.image_2d_from(grid=grid)
             
+
+            # Compute caustics
+            radial_caustics = tracer_clusters_only.radial_caustic_list_from(grid=grid)
+            tangential_caustics = tracer_clusters_only.tangential_caustic_list_from(grid=grid)
+
+            # Extract tangential caustic points
+            tangential_caustic_points = tangential_caustics[0]
+
+            # Find the cusp with the highest local curvature
+            # A simple approach: select points where the x or y coordinate changes most sharply
+            diffs = np.abs(np.diff(tangential_caustic_points, axis=0))
+            curvature_index = np.argmax(diffs[:, 0] + diffs[:, 1])  # Select highest curvature point
+
+            # Place source near this cusp
+            max_mag = tangential_caustic_points[curvature_index]
+
+
+            print(f"Maximum magnification occurs at {max_mag}")
+            # print(max_mag[0], max_mag[1])
+
+            # # Define a source galaxy placed at the highest magnification
+            source_position = (max_mag[0], max_mag[1])
+            intensity = np.random.uniform(0.5, 1.0)
+            source_profile = al.lp.Sersic(
+                centre=source_position,
+                intensity=intensity,
+                effective_radius=intensity * 1.5, 
+                sersic_index=np.random.uniform(1.0, 4.0)
+            )
+            source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
+
+
             # Now produce the full lensed image (clusters + source).
             tracer_with_source = al.Tracer(galaxies=all_clusters_galaxies + [source_galaxy])
             lensed_image_with_clusters = tracer_with_source.image_2d_from(grid=grid)
             
             # Combine the cluster light and the lensed source image.
             combined_image = lensed_image_with_clusters + clusters_image
+
+            # Compute lensed image
+            lensed_image = tracer_clusters_only.image_2d_from(grid=grid)
+
+            # Define visualization settings
+            visuals = aplt.Visuals2D(
+                radial_caustics=radial_caustics,
+                tangential_caustics=tangential_caustics
+            )
+
+            mat_plot = aplt.MatPlot2D(
+                output=aplt.Output(
+                    path="./output",
+                    filename="caustics_cluster_lensing",
+                    format="png",
+                    bbox_inches="tight"
+                )
+            )
+
+            # Plot the result
+            array_plotter = aplt.Array2DPlotter(
+                array=lensed_image,
+                visuals_2d=visuals,
+                mat_plot_2d=mat_plot
+            )
+            array_plotter.figure_2d()
+
             
             return combined_image.native
 
@@ -169,6 +242,34 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
 
             tracer_clusters_only = al.Tracer(galaxies=all_clusters_galaxies)
             clusters_image = tracer_clusters_only.image_2d_from(grid=grid)
+
+            tangential_caustics = tracer_clusters_only.tangential_caustic_list_from(grid=grid)
+
+            # Extract tangential caustic points
+            tangential_caustic_points = tangential_caustics[0]
+
+            # Find the cusp with the highest local curvature
+            # A simple approach: select points where the x or y coordinate changes most sharply
+            diffs = np.abs(np.diff(tangential_caustic_points, axis=0))
+            curvature_index = np.argmax(diffs[:, 0] + diffs[:, 1])  # Select highest curvature point
+
+            # Place source near this cusp
+            max_mag = tangential_caustic_points[curvature_index]
+
+
+            print(f"Maximum magnification occurs at {max_mag}")
+            # print(max_mag[0], max_mag[1])
+
+            # # Define a source galaxy placed at the highest magnification
+            source_position = (max_mag[0], max_mag[1])
+            intensity = np.random.uniform(0.5, 1.0)
+            source_profile = al.lp.Sersic(
+                centre=source_position,
+                intensity=intensity,
+                effective_radius=intensity * 1.5, 
+                sersic_index=np.random.uniform(1.0, 4.0)
+            )
+            source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
             
             # Now produce the full lensed image (clusters + source).
             tracer_with_source = al.Tracer(galaxies=all_clusters_galaxies + [source_galaxy])
@@ -194,30 +295,30 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
             std_dev=std_dev
         )
 
-        # Position the source galaxy close to the cluster for optimal lensing
-        source_position = (
-            np.random.uniform(0.0,5.0),
-            np.random.uniform(0.0,5.0)
-        )  # You can randomize this as you like
-        intensity = np.random.uniform(0.5, 1.0)
-        effective_radius = np.random.uniform(0.3, 0.6)
-        source_profile = al.lp.Sersic(
-            centre=source_position,
-            intensity=intensity,
-            effective_radius=intensity*1.5, 
-            sersic_index=np.random.uniform(1.0,4.0)
-        )
+        # # Position the source galaxy close to the cluster for optimal lensing
+        # source_position = (
+        #     np.random.uniform(0.0,5.0),
+        #     np.random.uniform(0.0,5.0)
+        # )  # You can randomize this as you like
+        # intensity = np.random.uniform(0.5, 1.0)
+        # effective_radius = np.random.uniform(0.3, 0.6)
+        # source_profile = al.lp.Sersic(
+        #     centre=source_position,
+        #     intensity=intensity,
+        #     effective_radius=intensity*1.5, 
+        #     sersic_index=np.random.uniform(1.0,4.0)
+        # )
 
-        source_galaxy = al.Galaxy(
-            redshift=1.5,
-            light = source_profile
-        )
+        # source_galaxy = al.Galaxy(
+        #     redshift=1.5,
+        #     light = source_profile
+        # )
 
         if background_image.any() == None: # .any()
         # Define a grid for the simulation to cover the entire canvas
             grid = al.Grid2D.uniform(
                 shape_native=(600, 600),
-                pixel_scales=0.4  # 1.8 before testing for critical curves # Pixel scale for capturing fine details
+                pixel_scales=0.6  # 1.8 before testing for critical curves # Pixel scale for capturing fine details
             )
 
             # Create a tracer for just the galaxy cluster (lens galaxies only, without the source)
@@ -238,12 +339,50 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
             # Combine the two images by adding the cluster light to the lensed image
             combined_image = lensed_image_with_cluster + cluster_image
 
-            if verbose >= 2:
-                cluster_plotter = aplt.Array2DPlotter(array=cluster_image)
-                cluster_plotter.figure_2d()
+            # Compute caustics
+            # radial_caustics = tracer_with_source.radial_caustic_list_from(grid=grid)
+            tangential_caustics = tracer_with_source.tangential_caustic_list_from(grid=grid)
 
-                combined_image_plotter = aplt.Array2DPlotter(array=combined_image)
-                combined_image_plotter.figure_2d()
+            # Compute lensed image
+            # lensed_image = tracer_with_source.image_2d_from(grid=grid)
+
+            # Define visualization settings
+            visuals = aplt.Visuals2D(
+                # radial_caustics=radial_caustics,
+                tangential_caustics=tangential_caustics
+            )
+
+            mat_plot = aplt.MatPlot2D(
+                output=aplt.Output(
+                    path="./output",
+                    filename="caustics_cluster_lensing",
+                    format="png",
+                    bbox_inches="tight"
+                )
+            )
+
+            # empty_array = al.Array2D(
+            #     array=np.zeros((600, 600)), 
+            #     pixel_scales=0.4
+            # )
+
+            # Plot the result
+            array_plotter = aplt.Array2DPlotter(
+                array=combined_image, 
+                visuals_2d=visuals,
+                mat_plot_2d=mat_plot
+            )
+            array_plotter.figure_2d()
+
+            # if verbose >= 2:
+            #     cluster_plotter = aplt.Array2DPlotter(array=cluster_image)
+            #     cluster_plotter.figure_2d()
+
+            #     combined_image_plotter = aplt.Array2DPlotter(array=combined_image)
+            #     combined_image_plotter.figure_2d()
+
+            #     array_plotter.figure_2d()
+
 
             return combined_image.native  # Return native 2D array
             # return cluster_image.native
@@ -260,7 +399,35 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
             lensed_image_with_cluster = tracer_with_source.image_2d_from(grid=grid)
 
 
+            # # radial_caustics = tracer_with_source.radial_caustic_list_from(grid=grid)
+            # tangential_caustics = tracer_with_source.tangential_caustic_list_from(grid=grid)
+
+            # # Compute lensed image
+            # # lensed_image = tracer_with_source.image_2d_from(grid=grid)
+
+            # # Define visualization settings
+            # visuals = aplt.Visuals2D(
+            #     # radial_caustics=radial_caustics,
+            #     tangential_caustics=tangential_caustics
+            # )
+
+            # mat_plot = aplt.MatPlot2D(
+            #     output=aplt.Output(
+            #         path="./output",
+            #         filename="cluster_lensing_with_caustics",
+            #         format="png",
+            #         bbox_inches="tight"
+            #     )
+            # )
+
             combined_image = background_image + lensed_image_with_cluster.native + cluster_image.native 
+
+            # array_plotter = aplt.Array2DPlotter(
+            #     array=combined_image, # change to lensed_image -> None for source plane
+            #     visuals_2d=visuals,
+            #     mat_plot_2d=mat_plot
+            # )
+            # array_plotter.figure_2d()
 
             return combined_image
  
