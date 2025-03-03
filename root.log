@@ -30,3 +30,9 @@
 2025-02-21 17:04:26,828 - numexpr.utils - INFO - NumExpr defaulting to 8 threads.
 2025-03-02 20:37:46,044 - matplotlib.font_manager - INFO - Failed to extract font properties from /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf: In FT2Font: Can not load face (unknown file format; error code 0x2)
 2025-03-02 20:37:46,124 - matplotlib.font_manager - INFO - generated new fontManager
+2025-03-02 18:09:35,541 - numexpr.utils - INFO - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+2025-03-02 18:09:35,542 - numexpr.utils - INFO - NumExpr defaulting to 8 threads.
+2025-03-02 18:10:10,954 - numexpr.utils - INFO - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+2025-03-02 18:10:10,955 - numexpr.utils - INFO - NumExpr defaulting to 8 threads.
+2025-03-03 11:16:07,986 - numexpr.utils - INFO - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+2025-03-03 11:16:07,987 - numexpr.utils - INFO - NumExpr defaulting to 8 threads.

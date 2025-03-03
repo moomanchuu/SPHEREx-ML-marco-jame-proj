@@ -8,7 +8,8 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     redshift, 
     std_dev,
     einstein_radius_range=60,
-    cluster_offset=(0.0, 0.0)
+    cluster_offset=(0.0, 0.0),
+    is_single = False
 ):
     """
     Generates a list of n galaxies with strong lensing properties and includes a dark matter halo.
@@ -23,22 +24,27 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
                                        parameters or remove them.
     """
     galaxies = []
-    #redshift = np.random.uniform(0.5,5.0)
     
     # Create dark matter halo
     halo_centre = (cluster_offset[0], cluster_offset[1])  # Place at the center of the canvas
 
     r_c = n**(0.92)
 
-    if halo_centre == (0,0):
+    if is_single == True:
         kap = 0.008
         einstein_radius = np.random.uniform(3.0,6.0)
+        scale_fac = 55*std_dev
+        cent_scal = 10
+        off_scal = 1.2
     else:
         kap = 0.04
         einstein_radius = np.random.uniform(5.0,7.0)
+        scale_fac = 50*std_dev
+        cent_scal = 9
+        off_scal = 1
 
     # make the dark matter halo more elliptical?
-    dark_comp = 0.3
+    dark_comp = 0.25
     dark_ell = (np.random.uniform(-dark_comp, dark_comp), np.random.uniform(-dark_comp, dark_comp))
 
     
@@ -46,7 +52,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
         centre=halo_centre,
         ell_comps=dark_ell,
         kappa_s=kap,           # used to be 0.008     # dimensionless amplitude
-        scale_radius=r_c*50*std_dev,
+        scale_radius=r_c*scale_fac, # 50 before
         inner_slope= 1.85             # typical range ~ [1.0 - 1.5], but can vary
     )
     
@@ -55,8 +61,8 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     galaxies.append(dark_matter_halo)
     
     for _ in range(n):
-        centre_x = np.random.normal(loc=0.0, scale=9*std_dev) + cluster_offset[0]
-        centre_y = np.random.normal(loc=0.0, scale=9*std_dev) + cluster_offset[1]
+        centre_x = np.random.normal(loc=0.0, scale=cent_scal*std_dev) + off_scal*cluster_offset[0] # scale = 9* std_dev before, 1*cluster offset
+        centre_y = np.random.normal(loc=0.0, scale=cent_scal*std_dev) + off_scal*cluster_offset[1]
 
         r = np.sqrt((centre_x**2) + (centre_y**2))
 
@@ -113,10 +119,10 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     
     return galaxies
 
-def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
+def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose=2):
     if multiple == True:
-        n_clusters=2
-        canvas_size = 100.0    # Define overall canvas size.
+        n_clusters=3
+        # canvas_size = 200.0    # Define overall canvas size.
         redshift = 0.5
         std_dev = np.random.uniform(3.0, 10.0)
         
@@ -283,16 +289,27 @@ def wrapperFunction(n_galaxies, background_image, multiple, verbose=2):
     else:
         # Increase the number of galaxies in the cluster and canvas size
         # n_galaxies = np.random.randint(3,8)
-        canvas_size = 100.0  # Large canvas size to spread galaxies
+        is_single = True
+
+        # canvas_size = 200.0  # Large canvas size to spread galaxies
         redshift = 0.5
         std_dev = np.random.uniform(3.0,10.0)   # Standard deviation for the normal distribution of galaxy positions
+
+        cluster_offset = []
+        offset_limit = canvas_size*2.0
+
+        offset_x = np.random.uniform(-offset_limit, offset_limit)
+        offset_y = np.random.uniform(-offset_limit, offset_limit)
+        cluster_offset.append((offset_x, offset_y))
 
         # Generate the galaxy cluster with significantly stronger lensing properties
         cluster_galaxies = generate_stronger_lensing_galaxy_cluster_with_halo(
             n=n_galaxies,
             canvas_size=canvas_size,
             redshift =redshift,
-            std_dev=std_dev
+            std_dev=std_dev,
+            cluster_offset=cluster_offset[0],
+            is_single=is_single
         )
 
         # # Position the source galaxy close to the cluster for optimal lensing
