@@ -32,7 +32,7 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
 
     if is_single == True:
         kap = 0.008
-        einstein_radius = np.random.uniform(3.0,6.0)
+        einstein_radius = np.random.uniform(5.0,7.0) # originall 3,6
         scale_fac = 55*std_dev
         cent_scal = 10
         off_scal = 1.2
@@ -243,7 +243,7 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
         else:
             grid = al.Grid2D.uniform(
                 shape_native=background_image.shape,  # Match the background image dimensions
-                pixel_scales=3.1,  # Set the pixel scale
+                pixel_scales=0.344,  # Set the pixel scale
             )
 
             tracer_clusters_only = al.Tracer(galaxies=all_clusters_galaxies)
