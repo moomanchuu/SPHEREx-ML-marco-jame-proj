@@ -31,9 +31,9 @@ def generate_stronger_lensing_galaxy_cluster_with_halo(
     r_c = n**(0.92)
 
     if is_single == True:
-        kap = 0.008
-        einstein_radius = np.random.uniform(3.0,6.0)
-        scale_fac = 55*std_dev
+        kap = 0.009
+        einstein_radius = np.random.uniform(4.0,6.0)
+        scale_fac = 60*std_dev
         cent_scal = 10
         off_scal = 1.2
     else:
@@ -296,7 +296,7 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
         std_dev = np.random.uniform(3.0,10.0)   # Standard deviation for the normal distribution of galaxy positions
 
         cluster_offset = []
-        offset_limit = canvas_size*2.0
+        offset_limit = 395 # canvas_size # Originally size*2
 
         offset_x = np.random.uniform(-offset_limit, offset_limit)
         offset_y = np.random.uniform(-offset_limit, offset_limit)
@@ -390,30 +390,26 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
                 mat_plot_2d=mat_plot
             )
             array_plotter.figure_2d()
-
-            # if verbose >= 2:
-            #     cluster_plotter = aplt.Array2DPlotter(array=cluster_image)
-            #     cluster_plotter.figure_2d()
-
-            #     combined_image_plotter = aplt.Array2DPlotter(array=combined_image)
-            #     combined_image_plotter.figure_2d()
-
-            #     array_plotter.figure_2d()
-
-
             return combined_image.native  # Return native 2D array
             # return cluster_image.native
         
         else:
-            grid = al.Grid2D.uniform(
-                shape_native=background_image.shape,  # Match the background image dimensions
-                pixel_scales=3.1,  # Set the pixel scale
+            # grid = al.Grid2D.uniform(
+            #     shape_native=background_image.shape,  # Match the background image dimensions
+            #     pixel_scales=3.1,  # Set the pixel scale, background is 0.344
+            # )
+
+            grid_sub = al.Grid2D.uniform(
+                shape_native= (395,395),
+                pixel_scales= 3.1,
+                origin=cluster_offset[0]  # centers the subgrid on the cluster
             )
+
             tracer_cluster_only = al.Tracer(galaxies=cluster_galaxies)
-            cluster_image = tracer_cluster_only.image_2d_from(grid=grid)
+            cluster_image = tracer_cluster_only.image_2d_from(grid=grid_sub)
 
 
-            tangential_caustics = tracer_cluster_only.tangential_caustic_list_from(grid=grid)
+            tangential_caustics = tracer_cluster_only.tangential_caustic_list_from(grid=grid_sub)
 
             # Extract tangential caustic points
             tangential_caustic_points = tangential_caustics[0]
@@ -431,6 +427,7 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
             # print(max_mag[0], max_mag[1])
 
             # # Define a source galaxy placed at the highest magnification
+            # source_position = (max_mag[0] + cluster_offset[0][0], max_mag[1] + cluster_offset[0][1])
             source_position = (max_mag[0], max_mag[1])
             intensity = np.random.uniform(0.5, 1.0)
             source_profile = al.lp.Sersic(
@@ -442,9 +439,22 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
             source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
 
             tracer_with_source = al.Tracer(galaxies=cluster_galaxies + [source_galaxy])
-            lensed_image_with_cluster = tracer_with_source.image_2d_from(grid=grid)
+            # lensed_image_with_cluster = tracer_with_source.image_2d_from(grid=grid)
+            lensed_image_with_cluster = tracer_with_source.image_2d_from(grid=grid_sub)
 
-            combined_image = background_image + lensed_image_with_cluster.native + cluster_image.native 
+            H_bg, W_bg = background_image.shape 
+
+            stamp_size = 395
+            # Random offsets that ensure the stamp fits entirely:
+            y_offset = np.random.randint(0, H_bg - stamp_size + 1)
+            x_offset = np.random.randint(0, W_bg - stamp_size + 1)
+
+            background_image[y_offset:y_offset+stamp_size, x_offset:x_offset+stamp_size] += lensed_image_with_cluster.native
+
+            # combined_image = background_image[y_offset:y_offset+stamp_size, x_offset:x_offset+stamp_size] + lensed_image_with_cluster.native
+
+
+            # combined_image = background_image + lensed_image_with_cluster.native#  + cluster_image.native 
 
             # array_plotter = aplt.Array2DPlotter(
             #     array=combined_image, # change to lensed_image -> None for source plane
@@ -453,7 +463,10 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
             # )
             # array_plotter.figure_2d()
 
-            return combined_image
+            # print(cluster_offset[0])
+
+            return background_image #, combined_image
+            # return combined_image
  
 
 if __name__ == "__main__":
