@@ -126,9 +126,9 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
         redshift = 0.5
         std_dev = np.random.uniform(3.0, 10.0)
         
-        # Generate random offsets for each cluster. Here we choose offsets within ±canvas_size/3.
+        # Generate random offsets for each cluster. Here we choose offsets within 
         cluster_offsets = []
-        offset_limit = canvas_size*2.0
+        offset_limit = 395 # canvas_size*2.0
         for _ in range(n_clusters):
             offset_x = np.random.uniform(-offset_limit, offset_limit)
             offset_y = np.random.uniform(-offset_limit, offset_limit)
@@ -162,94 +162,33 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
         # source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
         
         if background_image.any() == None:
-            # Create the simulation grid.
-            grid = al.Grid2D.uniform(
-                shape_native=(600, 600),
-                pixel_scales=0.8
-            )
-            
-            # First, produce the image from all cluster galaxies (their own light).
-            tracer_clusters_only = al.Tracer(galaxies=all_clusters_galaxies)
-            clusters_image = tracer_clusters_only.image_2d_from(grid=grid)
-            
-
-            # Compute caustics
-            radial_caustics = tracer_clusters_only.radial_caustic_list_from(grid=grid)
-            tangential_caustics = tracer_clusters_only.tangential_caustic_list_from(grid=grid)
-
-            # Extract tangential caustic points
-            tangential_caustic_points = tangential_caustics[0]
-
-            # Find the cusp with the highest local curvature
-            # A simple approach: select points where the x or y coordinate changes most sharply
-            diffs = np.abs(np.diff(tangential_caustic_points, axis=0))
-            curvature_index = np.argmax(diffs[:, 0] + diffs[:, 1])  # Select highest curvature point
-
-            # Place source near this cusp
-            max_mag = tangential_caustic_points[curvature_index]
-
-
-            print(f"Maximum magnification occurs at {max_mag}")
-            # print(max_mag[0], max_mag[1])
-
-            # # Define a source galaxy placed at the highest magnification
-            source_position = (max_mag[0], max_mag[1])
-            intensity = np.random.uniform(0.5, 1.0)
-            source_profile = al.lp.Sersic(
-                centre=source_position,
-                intensity=intensity,
-                effective_radius=intensity * 1.5, 
-                sersic_index=np.random.uniform(1.0, 4.0)
-            )
-            source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
-
-
-            # Now produce the full lensed image (clusters + source).
-            tracer_with_source = al.Tracer(galaxies=all_clusters_galaxies + [source_galaxy])
-            lensed_image_with_clusters = tracer_with_source.image_2d_from(grid=grid)
-            
-            # Combine the cluster light and the lensed source image.
-            combined_image = lensed_image_with_clusters + clusters_image
-
-            # Compute lensed image
-            lensed_image = tracer_clusters_only.image_2d_from(grid=grid)
-
-            # Define visualization settings
-            visuals = aplt.Visuals2D(
-                radial_caustics=radial_caustics,
-                tangential_caustics=tangential_caustics
-            )
-
-            mat_plot = aplt.MatPlot2D(
-                output=aplt.Output(
-                    path="./output",
-                    filename="caustics_cluster_lensing",
-                    format="png",
-                    bbox_inches="tight"
-                )
-            )
-
-            # Plot the result
-            array_plotter = aplt.Array2DPlotter(
-                array=lensed_image,
-                visuals_2d=visuals,
-                mat_plot_2d=mat_plot
-            )
-            array_plotter.figure_2d()
-
-            
-            return combined_image.native
+            # See Multiple-None at bottom of file. 
+            print("No background img code in function ")
+            return 0
 
         else:
-            grid = al.Grid2D.uniform(
-                shape_native=background_image.shape,  # Match the background image dimensions
-                pixel_scales=3.1,  # Set the pixel scale
+            # grid = al.Grid2D.uniform(
+            #     shape_native=background_image.shape,  # Match the background image dimensions
+            #     pixel_scales=3.1,  # Set the pixel scale
+            # )
+
+            # Convert to NumPy array for easier computation
+            offsets_array = np.array(cluster_offsets)
+
+            # Compute the centroid (mean of x and y values)
+            center_x = np.mean(offsets_array[:, 0])
+            center_y = np.mean(offsets_array[:, 1])
+
+            grid_sub = al.Grid2D.uniform(
+                shape_native= (395,395),
+                pixel_scales= 3.1,
+                origin=(center_x, center_y)  # centers the subgrid on the cluster. For multiple clusters take the center still?
             )
 
             tracer_clusters_only = al.Tracer(galaxies=all_clusters_galaxies)
-            clusters_image = tracer_clusters_only.image_2d_from(grid=grid)
+            clusters_image = tracer_clusters_only.image_2d_from(grid=grid_sub)
 
-            tangential_caustics = tracer_clusters_only.tangential_caustic_list_from(grid=grid)
+            tangential_caustics = tracer_clusters_only.tangential_caustic_list_from(grid=grid_sub)
 
             # Extract tangential caustic points
             tangential_caustic_points = tangential_caustics[0]
@@ -279,12 +218,22 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
             
             # Now produce the full lensed image (clusters + source).
             tracer_with_source = al.Tracer(galaxies=all_clusters_galaxies + [source_galaxy])
-            lensed_image_with_clusters = tracer_with_source.image_2d_from(grid=grid)
+            lensed_image_with_clusters = tracer_with_source.image_2d_from(grid=grid_sub)
+
+
+            H_bg, W_bg = background_image.shape 
+
+            stamp_size = 395
+            # Random offsets that ensure the stamp fits entirely:
+            y_offset = np.random.randint(0, H_bg - stamp_size + 1)
+            x_offset = np.random.randint(0, W_bg - stamp_size + 1)
+
+            background_image[y_offset:y_offset+stamp_size, x_offset:x_offset+stamp_size] += lensed_image_with_clusters.native
             
             # Combine the cluster light and the lensed source image.
-            combined_image = background_image + lensed_image_with_clusters.native + clusters_image.native
+            # combined_image = background_image + lensed_image_with_clusters.native + clusters_image.native
 
-            return combined_image
+            return background_image
 
     else:
         # Increase the number of galaxies in the cluster and canvas size
@@ -312,86 +261,10 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
             is_single=is_single
         )
 
-        # # Position the source galaxy close to the cluster for optimal lensing
-        # source_position = (
-        #     np.random.uniform(0.0,5.0),
-        #     np.random.uniform(0.0,5.0)
-        # )  # You can randomize this as you like
-        # intensity = np.random.uniform(0.5, 1.0)
-        # effective_radius = np.random.uniform(0.3, 0.6)
-        # source_profile = al.lp.Sersic(
-        #     centre=source_position,
-        #     intensity=intensity,
-        #     effective_radius=intensity*1.5, 
-        #     sersic_index=np.random.uniform(1.0,4.0)
-        # )
-
-        # source_galaxy = al.Galaxy(
-        #     redshift=1.5,
-        #     light = source_profile
-        # )
-
         if background_image.any() == None: # .any()
-        # Define a grid for the simulation to cover the entire canvas
-            grid = al.Grid2D.uniform(
-                shape_native=(600, 600),
-                pixel_scales=0.6  # 1.8 before testing for critical curves # Pixel scale for capturing fine details
-            )
-
-            # Create a tracer for just the galaxy cluster (lens galaxies only, without the source)
-            tracer_cluster_only = al.Tracer(galaxies=cluster_galaxies)
-
-            # Generate the image of the galaxy cluster alone
-            cluster_image = tracer_cluster_only.image_2d_from(grid=grid)
-
-            # critical_curve_grid = compute_critical_curve(tracer_cluster_only, grid)
-
-
-            # Create a tracer including both the galaxy cluster and the lensed source galaxy
-            tracer_with_source = al.Tracer(galaxies=cluster_galaxies + [source_galaxy])
-
-            # Generate the full lensed image including both the galaxy cluster and the lensed source galaxy
-            lensed_image_with_cluster = tracer_with_source.image_2d_from(grid=grid)
-
-            # Combine the two images by adding the cluster light to the lensed image
-            combined_image = lensed_image_with_cluster + cluster_image
-
-            # Compute caustics
-            # radial_caustics = tracer_with_source.radial_caustic_list_from(grid=grid)
-            tangential_caustics = tracer_with_source.tangential_caustic_list_from(grid=grid)
-
-            # Compute lensed image
-            # lensed_image = tracer_with_source.image_2d_from(grid=grid)
-
-            # Define visualization settings
-            visuals = aplt.Visuals2D(
-                # radial_caustics=radial_caustics,
-                tangential_caustics=tangential_caustics
-            )
-
-            mat_plot = aplt.MatPlot2D(
-                output=aplt.Output(
-                    path="./output",
-                    filename="caustics_cluster_lensing",
-                    format="png",
-                    bbox_inches="tight"
-                )
-            )
-
-            # empty_array = al.Array2D(
-            #     array=np.zeros((600, 600)), 
-            #     pixel_scales=0.4
-            # )
-
-            # Plot the result
-            array_plotter = aplt.Array2DPlotter(
-                array=combined_image, 
-                visuals_2d=visuals,
-                mat_plot_2d=mat_plot
-            )
-            array_plotter.figure_2d()
-            return combined_image.native  # Return native 2D array
-            # return cluster_image.native
+            # See Single-None at bottom of file
+            print("No background img code in function ")
+            return 0
         
         else:
             # grid = al.Grid2D.uniform(
@@ -472,3 +345,145 @@ def wrapperFunction(n_galaxies, background_image, multiple, canvas_size, verbose
 if __name__ == "__main__":
     wrapperFunction(verbose=2)
 
+# Multiple-None
+# -------------
+# # Create the simulation grid.
+# grid = al.Grid2D.uniform(
+#     shape_native=(600, 600),
+#     pixel_scales=0.8
+# )
+
+# # First, produce the image from all cluster galaxies (their own light).
+# tracer_clusters_only = al.Tracer(galaxies=all_clusters_galaxies)
+# clusters_image = tracer_clusters_only.image_2d_from(grid=grid)
+
+
+# # Compute caustics
+# radial_caustics = tracer_clusters_only.radial_caustic_list_from(grid=grid)
+# tangential_caustics = tracer_clusters_only.tangential_caustic_list_from(grid=grid)
+
+# # Extract tangential caustic points
+# tangential_caustic_points = tangential_caustics[0]
+
+# # Find the cusp with the highest local curvature
+# # A simple approach: select points where the x or y coordinate changes most sharply
+# diffs = np.abs(np.diff(tangential_caustic_points, axis=0))
+# curvature_index = np.argmax(diffs[:, 0] + diffs[:, 1])  # Select highest curvature point
+
+# # Place source near this cusp
+# max_mag = tangential_caustic_points[curvature_index]
+
+
+# print(f"Maximum magnification occurs at {max_mag}")
+# # print(max_mag[0], max_mag[1])
+
+# # # Define a source galaxy placed at the highest magnification
+# source_position = (max_mag[0], max_mag[1])
+# intensity = np.random.uniform(0.5, 1.0)
+# source_profile = al.lp.Sersic(
+#     centre=source_position,
+#     intensity=intensity,
+#     effective_radius=intensity * 1.5, 
+#     sersic_index=np.random.uniform(1.0, 4.0)
+# )
+# source_galaxy = al.Galaxy(redshift=1.5, light=source_profile)
+
+
+# # Now produce the full lensed image (clusters + source).
+# tracer_with_source = al.Tracer(galaxies=all_clusters_galaxies + [source_galaxy])
+# lensed_image_with_clusters = tracer_with_source.image_2d_from(grid=grid)
+
+# # Combine the cluster light and the lensed source image.
+# combined_image = lensed_image_with_clusters + clusters_image
+
+# # Compute lensed image
+# lensed_image = tracer_clusters_only.image_2d_from(grid=grid)
+
+# # Define visualization settings
+# visuals = aplt.Visuals2D(
+#     radial_caustics=radial_caustics,
+#     tangential_caustics=tangential_caustics
+# )
+
+# mat_plot = aplt.MatPlot2D(
+#     output=aplt.Output(
+#         path="./output",
+#         filename="caustics_cluster_lensing",
+#         format="png",
+#         bbox_inches="tight"
+#     )
+# )
+
+# # Plot the result
+# array_plotter = aplt.Array2DPlotter(
+#     array=lensed_image,
+#     visuals_2d=visuals,
+#     mat_plot_2d=mat_plot
+# )
+# array_plotter.figure_2d()
+# 
+# return combined_image.native
+
+
+# Single-None
+# -----------
+# Define a grid for the simulation to cover the entire canvas
+# grid = al.Grid2D.uniform(
+#     shape_native=(600, 600),
+#     pixel_scales=0.6  # 1.8 before testing for critical curves # Pixel scale for capturing fine details
+# )
+
+# # Create a tracer for just the galaxy cluster (lens galaxies only, without the source)
+# tracer_cluster_only = al.Tracer(galaxies=cluster_galaxies)
+
+# # Generate the image of the galaxy cluster alone
+# cluster_image = tracer_cluster_only.image_2d_from(grid=grid)
+
+# # critical_curve_grid = compute_critical_curve(tracer_cluster_only, grid)
+
+
+# # Create a tracer including both the galaxy cluster and the lensed source galaxy
+# tracer_with_source = al.Tracer(galaxies=cluster_galaxies + [source_galaxy])
+
+# # Generate the full lensed image including both the galaxy cluster and the lensed source galaxy
+# lensed_image_with_cluster = tracer_with_source.image_2d_from(grid=grid)
+
+# # Combine the two images by adding the cluster light to the lensed image
+# combined_image = lensed_image_with_cluster + cluster_image
+
+# # Compute caustics
+# # radial_caustics = tracer_with_source.radial_caustic_list_from(grid=grid)
+# tangential_caustics = tracer_with_source.tangential_caustic_list_from(grid=grid)
+
+# # Compute lensed image
+# # lensed_image = tracer_with_source.image_2d_from(grid=grid)
+
+# # Define visualization settings
+# visuals = aplt.Visuals2D(
+#     # radial_caustics=radial_caustics,
+#     tangential_caustics=tangential_caustics
+# )
+
+# mat_plot = aplt.MatPlot2D(
+#     output=aplt.Output(
+#         path="./output",
+#         filename="caustics_cluster_lensing",
+#         format="png",
+#         bbox_inches="tight"
+#     )
+# )
+
+# # empty_array = al.Array2D(
+# #     array=np.zeros((600, 600)), 
+# #     pixel_scales=0.4
+# # )
+
+# # Plot the result
+# array_plotter = aplt.Array2DPlotter(
+#     array=combined_image, 
+#     visuals_2d=visuals,
+#     mat_plot_2d=mat_plot
+# )
+# array_plotter.figure_2d()
+# return combined_image.native  # Return native 2D array
+# # return cluster_image.native
