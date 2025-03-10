@@ -222,7 +222,6 @@ def process_section(args):
 
 def parallel_canvas_generator(ra_column, dec_column, flux_column, ra_offset,dec_offset, dataTable,psf_length, reso_ratio, n_spherex_pix, n_sections):
 
-
     start_time = time.time()
 
     # Project RA/DEC to cartesian coordinate
@@ -268,7 +267,6 @@ def parallel_canvas_generator(ra_column, dec_column, flux_column, ra_offset,dec_
             
             ranges.append((y_range, x_range)) 
 
-
     #List of arguements used for multiprocessing
     args = [(x, y, flux_column, section_size, x_range, y_range, dataTable, edgeSersics, section_position_idxs[idx]) 
             for idx, (x_range, y_range) in enumerate(ranges)]
@@ -301,6 +299,60 @@ def parallel_canvas_generator(ra_column, dec_column, flux_column, ra_offset,dec_
     #no need for this tbh: end_time = time.time()
     elapsed_time = time.time() - start_time
     #print(f'parallel_canvas_generator has been completed. Time Elapsed: {elapsed_time} seconds. Enjoy!')
+    return stitchedCanvas
+
+import numpy as np
+import cv2  # OpenCV for text overlay
+import matplotlib.pyplot as plt
+from multiprocessing import Pool, cpu_count
+from tqdm import tqdm
+
+def process_section_debug(args):
+    """ Generate a debug visualization where each section has a unique color and an index label. """
+    section_idx, section_size = args
+    
+    # Create a section with a unique intensity based on its index
+    intensity = int((section_idx / n_sections) * 255)  # Scale from 0-255 for grayscale
+    canvas = np.full((section_size, section_size), intensity, dtype=np.uint8)
+
+    # Add a large section index number in the middle
+    text = str(section_idx)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 1.5
+    font_thickness = 2
+    text_size = cv2.getTextSize(text, font, font_scale, font_thickness)[0]
+
+    # Center the text
+    text_x = (section_size - text_size[0]) // 2
+    text_y = (section_size + text_size[1]) // 2
+
+    # Apply the text onto the section
+    cv2.putText(canvas, text, (text_x, text_y), font, font_scale, 255, font_thickness, cv2.LINE_AA)
+
+    return canvas
+
+def debug_stitched_canvas(n_pix, n_sections):
+    """ Generates a debug version of stitchedCanvas with indexed section labels. """
+    
+    # Determine sectioning
+    sections_per_side = int(np.sqrt(n_sections))
+    section_size = n_pix // sections_per_side
+    section_position_idxs = gen_globalmap_section_indexes(section_size, sections_per_side)
+
+    # Generate debug sections
+    with Pool(cpu_count()) as pool:
+        canvas_sections = list(tqdm(pool.imap(process_section_debug, [(i, section_size) for i in range(n_sections)]), 
+                                    total=n_sections, desc='Generating Debug Sections'))
+
+    # Initialize stitched canvas
+    stitchedCanvas = np.zeros((n_pix, n_pix), dtype=np.uint8)
+
+    # Stitch the sections together
+    for section_idx, (canvas_section, global_section_idxs) in enumerate(zip(canvas_sections, section_position_idxs)):
+        # Flatten and apply
+        flat_populated_section = canvas_section.flatten()
+        stitchedCanvas[tuple(np.array(global_section_idxs).T)] = flat_populated_section
+
     return stitchedCanvas
 
 
